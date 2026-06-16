@@ -1,0 +1,124 @@
+agent:
+  name: medical-diagnosis-agent
+  version: "1.0.0"
+  description: "Evidence-based clinical triage, differential diagnosis, and emergency support AI agent"
+  cluster: F
+
+server:
+  host: "0.0.0.0"
+  port: 8008
+  log_level: INFO
+
+memory:
+  db_path: "data/medical_agent.db"
+  session_retention_days: 365
+
+models_dir: "models"
+
+symptom_analyzer:
+  min_opqrst_fields: 2
+  min_entities: 1
+  use_llm_opqrst: true
+  use_hf_ner: true
+
+triage_engine:
+  scoring_systems:
+    - news2
+    - qsofa
+    - curb65
+    - gcs
+  severity_thresholds:
+    news2_critical: 7
+    news2_high: 5
+    news2_medium: 3
+    qsofa_sepsis: 2
+    curb65_severe: 3
+    gcs_severe: 8
+  red_flag_detection: true
+
+diagnosis_engine:
+  min_differentials: 2
+  max_differentials: 5
+  evidence_retrieval_top_k: 10
+  rerank_top_k: 5
+  require_evidence_citations: true
+
+report_generator:
+  safety_gates:
+    block_medication_dosages: true
+    block_specific_drug_names: true
+    require_disclaimer: true
+    escalation_notice_for_high_critical: true
+  max_patient_report_words: 300
+
+llm:
+  provider_chain:
+    - claude
+    - openai
+    - ollama
+  default_claude_model: "claude-sonnet-4-6"
+  default_openai_model: "gpt-4o-mini"
+  default_ollama_model: "llama3"
+  max_retries: 3
+  retry_base_delay: 1
+  privacy_mode: false
+  token_budgets:
+    opqrst_interview: 600
+    differential_synthesis: 1200
+    patient_guidance: 400
+    evidence_synthesis: 800
+
+hf_models:
+  bio_clinical_bert:
+    model_id: "emilyalsentzer/Bio_ClinicalBERT"
+    task: "ner"
+    min_confidence: 0.7
+  pubmed_bert:
+    model_id: "NLP4Science/pubmedbert-full-text-clinical"
+    task: "text-classification"
+  minilm:
+    model_id: "sentence-transformers/all-MiniLM-L6-v2"
+    task: "sentence-similarity"
+  bge_large:
+    model_id: "BAAI/bge-large-en-v1.5"
+    task: "dense-retrieval"
+  bge_reranker:
+    model_id: "BAAI/bge-reranker-large"
+    task: "reranking"
+  bart_cnn:
+    model_id: "facebook/bart-large-cnn"
+    task: "summarization"
+    max_summary_length: 150
+  idle_timeout_seconds: 600
+
+knowledge_updater:
+  schedule: "weekly"
+  cron: "0 2 * * 0"
+  sources:
+    pubmed:
+      base_url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
+      max_results_per_query: 8
+      rate_limit_per_second: 2
+    arxiv:
+      categories:
+        - "cs.AI"
+        - "cs.LG"
+        - "cs.CL"
+      max_results_per_query: 6
+    medrxiv:
+      rss_url: "https://www.medrxiv.org/rss/medrxiv.xml"
+      max_entries: 15
+  scoring:
+    recency_weight: 0.6
+    relevance_weight: 0.4
+  max_entries_per_run: 30
+
+quality_gates:
+  symptom_min_opqrst_fields: 2
+  symptom_min_entities: 1
+  triage_news2_computed: true
+  differential_min_candidates: 2
+  differential_require_citations: true
+  report_no_medication_dosages: true
+  report_disclaimer_required: true
+  report_escalation_for_critical: true

@@ -1,0 +1,96 @@
+version: "3.9"
+
+services:
+  medical-diagnosis-agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: medical-diagnosis-agent:latest
+    container_name: medical-diagnosis-agent
+    restart: unless-stopped
+    ports:
+      - "8008:8008"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-sonnet-4-6}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - PRIVACY_MODE=${PRIVACY_MODE:-false}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3}
+      - HF_TOKEN=${HF_TOKEN}
+      - NCBI_EMAIL=${NCBI_EMAIL}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - medical_data:/app/data
+      - medical_models:/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - medical_net
+    command: ["python", "-m", "agent.main", "serve", "--host", "0.0.0.0", "--port", "8008", "--start-scheduler"]
+
+  medical-diagnosis-agent-gpu:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: medical-diagnosis-agent:latest
+    container_name: medical-diagnosis-agent-gpu
+    restart: unless-stopped
+    profiles:
+      - gpu
+    ports:
+      - "8008:8008"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PRIVACY_MODE=${PRIVACY_MODE:-false}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - HF_TOKEN=${HF_TOKEN}
+    volumes:
+      - medical_data:/app/data
+      - medical_models:/app/models
+    networks:
+      - medical_net
+    command: ["python", "-m", "agent.main", "serve", "--start-scheduler"]
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: medical-ollama
+    restart: unless-stopped
+    profiles:
+      - ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - medical_ollama_models:/root/.ollama
+    networks:
+      - medical_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  medical_data:
+    name: medical_data
+  medical_models:
+    name: medical_models
+  medical_ollama_models:
+    name: medical_ollama_models
+
+networks:
+  medical_net:
+    name: medical_net
